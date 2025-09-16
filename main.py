@@ -3,8 +3,12 @@ import openai
 from dmr.config import ConfigManager
 from dmr.utils.helpers import validate_model_name, format_error_message
 from dmr.storage import ConversationManager, TemplateManager, ExportManager
+from dmr.utils.performance import performance_metrics, PerformanceReport
 from pathlib import Path
 from datetime import datetime
+import time
+import random
+from functools import wraps
 
 # Initialize configuration manager
 config_manager = ConfigManager()
@@ -13,6 +17,55 @@ config_manager = ConfigManager()
 conversation_manager = ConversationManager()
 template_manager = TemplateManager()
 export_manager = ExportManager()
+
+def exponential_backoff_retry(max_retries=3, base_delay=1.0, max_delay=60.0, backoff_factor=2.0):
+    """
+    Decorator for exponential backoff retry logic on API calls.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay between retries
+        backoff_factor: Multiplier for delay on each retry
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_retries + 1):  # +1 for initial attempt
+                try:
+                    return func(*args, **kwargs)
+                    
+                except (openai.APIConnectionError, openai.APITimeoutError, openai.APIStatusError) as e:
+                    last_exception = e
+                    
+                    # Don't retry on certain status codes
+                    if isinstance(e, openai.APIStatusError):
+                        if e.status_code in [400, 401, 403, 404, 422]:  # Client errors
+                            raise e
+                    
+                    if attempt >= max_retries:
+                        break
+                    
+                    # Calculate delay with exponential backoff and jitter
+                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+                    jitter = random.uniform(0, 0.1 * delay)  # Add 10% jitter
+                    total_delay = delay + jitter
+                    
+                    print(f"⚠️ API call failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {total_delay:.1f}s...")
+                    time.sleep(total_delay)
+                    
+                except Exception as e:
+                    # Don't retry on non-API errors
+                    raise e
+            
+            # If we get here, all retries failed
+            if last_exception:
+                raise last_exception
+                
+        return wrapper
+    return decorator
 
 def initialize_client():
     """Initialize OpenAI client with configuration and production-ready settings."""
@@ -153,8 +206,9 @@ def validate_model_availability(model_name):
         print(f"⚠️ Could not validate model availability: {e}")
         return False  # Fail closed for safety
 
+@exponential_backoff_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
 def chat_with_extended_timeout(client, model, messages, model_config, timeout=60.0):
-    """Chat with extended timeout for potentially slow operations."""
+    """Chat with extended timeout for potentially slow operations with exponential backoff."""
     try:
         with client.with_options(timeout=timeout).chat.completions.stream(
             model=model,
@@ -599,6 +653,40 @@ def handle_list_templates():
             vars_str = f" (vars: {', '.join(template['variables'])})" if template['variables'] else ""
             print(f"  • {template['name']}{vars_str}")
             print(f"    {template['description']}")
+
+def handle_performance_metrics():
+    """Display current performance metrics."""
+    print("\n" + PerformanceReport.generate_summary())
+    print("\n" + PerformanceReport.generate_cache_report())
+    
+    # Show cache statistics
+    config_stats = config_manager.get_cache_stats()
+    conv_stats = conversation_manager.get_cache_stats()
+    
+    print(f"\n🗄️ Cache Statistics")
+    print("-" * 20)
+    print(f"Configuration Cache:")
+    print(f"  Files cached: {config_stats['files_cached']}")
+    print(f"  Profiles cached: {config_stats['profiles_cached']}")
+    print(f"  Environment cached: {config_stats['env_cached']}")
+    print(f"  Cache valid: {config_stats['cache_valid']}")
+    
+    print(f"\nConversation Cache:")
+    print(f"  Conversations indexed: {conv_stats['conversation_count']}")
+    print(f"  Cache file exists: {conv_stats['cache_file_exists']}")
+    
+    # Offer to export metrics
+    export_choice = input("\nExport metrics to file? (y/N): ").strip().lower()
+    if export_choice == 'y':
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_path = Path(f"performance_metrics_{timestamp}.json")
+        performance_metrics.export_metrics(export_path)
+        print(f"📁 Metrics exported to: {export_path}")
+
+def handle_clear_performance_metrics():
+    """Clear all performance metrics."""
+    performance_metrics.clear_metrics()
+    print("🗑️ Performance metrics cleared.")
 
 def main():
     """

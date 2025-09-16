@@ -1,21 +1,29 @@
 # D-Model-Runner Copilot Instructions
 
-This project is a production-ready Python client for Docker Model Runner with enterprise-grade configuration management, conversation persistence, and comprehensive testing. Phase 1-3 complete as of September 2025.
+This project is a production-ready Python client for Docker Model Runner with enterprise-grade configuration management, conversation persistence, comprehensive testing, and a modern web UI. Phases 1-4 complete as of September 2025.
 
 ## Core Architecture & Entry Points
 
 **Main Entry Points**:
 - `python main.py` - Interactive chat with conversation persistence and model selection
+- `python UI/app.py` - Web UI server for browser-based chat interface
 - `python test/test.py` - Parameter validation and Docker Model Runner compatibility testing
 - `python tests/performance/benchmark.py` - Performance benchmarking
 
-**Package Structure** (`dmr/` - 2,197 LOC):
+**Package Structure**:
 ```python
-dmr/
-├── config/           # Multi-source configuration (files, env vars, profiles)
-├── storage/          # Conversation persistence, templates, multi-format export
-├── utils/           # Shared utilities and validation
-└── __init__.py      # Package exports: ConfigManager, storage classes
+dmr/                    # Core package (2,197 LOC)
+├── config/            # Multi-source configuration (files, env vars, profiles)
+├── storage/           # Conversation persistence, templates, multi-format export
+├── utils/            # Shared utilities and validation
+└── __init__.py       # Package exports: ConfigManager, storage classes
+
+UI/                     # Web interface (Flask-based, ~800 LOC)
+├── app.py            # Flask web server with DMR integration
+├── templates/        # HTML templates
+├── static/           # CSS/JS assets
+├── tests/            # Playwright test suite
+└── Checklist_ui.md   # UI development roadmap
 ```
 
 **Critical Integration Pattern**:
@@ -44,7 +52,7 @@ python test/test.py                     # Docker Model Runner compatibility
 - Environment overrides: `DMR_BASE_URL`, `DMR_DEFAULT_MODEL`, `DMR_MAX_TOKENS`
 - Profile switching: `config_manager.load_config('dev')` vs `config_manager.load_config('prod')`
 
-**Current Phase**: ✅ **Phase 3 Complete** (September 2025)
+**Current Phase**: ✅ **Phase 4 Complete** (September 2025) - Web UI Implementation
 
 ## Docker Model Runner Integration
 
@@ -212,6 +220,57 @@ export_manager.export_conversation(conversation, "pdf", "output.pdf")  # Advance
 - `Message`: `role`, `content`, `timestamp`, `metadata`
 - `Template`: JSON-based with variable substitution support
 
+## Web UI Architecture
+
+**UI Entry Point**:
+- `python UI/app.py` - Flask web server with DMR integration
+
+**UI Architecture** (`UI/` - ~800 LOC):
+```python
+UI/
+├── app.py              # Flask web server with DMR integration
+├── templates/
+│   └── chat.html      # Modern chat interface
+├── static/
+│   ├── css/style.css  # Responsive styling
+│   └── js/chat.js     # Real-time chat functionality
+├── tests/
+│   └── test_ui.py     # Playwright test suite
+└── Checklist_ui.md    # UI development roadmap
+```
+
+**UI Integration Pattern**:
+```python
+# Standard UI initialization pattern
+from dmr.config import ConfigManager
+from dmr.storage import ConversationManager
+
+# Flask app with DMR integration
+config_manager = ConfigManager()
+conversation_manager = ConversationManager()
+
+# API endpoints integrate with existing DMR infrastructure
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    # Uses ConfigManager for model configuration
+    # Uses ConversationManager for persistence
+    # Returns OpenAI-compatible responses
+```
+
+**UI Features**:
+- Modern chat interface with real-time messaging
+- Model selection dropdown (ai/gemma3, ai/qwen3)
+- Conversation persistence with timestamps
+- Responsive design for desktop and mobile
+- Health monitoring and connection status
+- Error handling with user-friendly messages
+
+**UI Testing**:
+- Playwright browser automation for UI testing
+- API endpoint validation
+- Cross-browser compatibility testing
+- Mobile responsiveness verification
+
 ## Testing Infrastructure Pattern
 
 **Test Categories** (`tests/` - 2,904 LOC):
@@ -293,17 +352,26 @@ except Exception as e:
 ## Modification Guidelines
 
 **Adding New Features**:
-1. Follow modular package structure in `dmr/`
+1. Follow modular package structure in `dmr/` and `UI/`
 2. Add configuration support in `dmr/config/profiles/`  
-3. Implement comprehensive tests (unit + integration)
+3. Implement comprehensive tests (unit + integration + Playwright UI tests)
 4. Use established patterns: Repository, Factory, Strategy
-5. Reference `TODO/implement_checklist.md` for phase planning
+5. Reference `TODO/implement_checklist.md` and `UI/Checklist_ui.md` for phase planning
+6. For UI features: Follow Flask REST API patterns and integrate with DMR managers
+
+**UI Development Guidelines**:
+1. Keep UI lightweight - use vanilla HTML/CSS/JS for core functionality
+2. Integrate with existing DMR ConfigManager and ConversationManager
+3. Add Playwright tests for new UI features
+4. Maintain responsive design for mobile and desktop
+5. Follow established error handling patterns from DMR
 
 **Performance Considerations**:
 - Configuration loading: Sub-millisecond (cached after first load)
 - Conversation operations: <2ms typical
+- UI API responses: <500ms for good user experience
 - Search optimization needed for >100 conversations (currently ~21ms)
 
-**Dependencies**: Minimal external deps (`openai`, `PyYAML`, `requests`) - avoid adding heavy dependencies
+**Dependencies**: Minimal external deps (`openai`, `PyYAML`, `requests`, `flask`, `flask-cors`) - avoid adding heavy dependencies
 
-**Ready for Phase 4**: Real-time streaming, multi-model support, plugin system, web UI
+**Ready for Phase 5**: Real-time streaming, advanced UI features, plugin system, production deployment

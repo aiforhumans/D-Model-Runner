@@ -51,27 +51,101 @@ class JSONExporter(BaseExporter):
     
     def export(self, conversation: Conversation, output_path: Path, 
                options: Optional[Dict[str, Any]] = None) -> Path:
-        """Export conversation to JSON format."""
+        """Export conversation to JSON format with streaming for large conversations."""
         validated_options = self.validate_options(options)
         
+        # Use streaming export for large conversations (>1000 messages)
+        if len(conversation.messages) > 1000:
+            return self._export_streaming(conversation, output_path, validated_options)
+        else:
+            return self._export_buffered(conversation, output_path, validated_options)
+    
+    def _export_buffered(self, conversation: Conversation, output_path: Path, 
+                        options: Dict[str, Any]) -> Path:
+        """Export using traditional buffered approach for smaller conversations."""
         # Build export data
-        export_data = self._build_export_data(conversation, validated_options)
+        export_data = self._build_export_data(conversation, options)
         
         # Write to file
         with open(output_path, 'w', encoding='utf-8') as f:
-            if validated_options['pretty_print']:
+            if options['pretty_print']:
                 json.dump(
                     export_data, 
                     f, 
-                    indent=validated_options['indent'],
-                    ensure_ascii=validated_options['ensure_ascii']
+                    indent=options['indent'],
+                    ensure_ascii=options['ensure_ascii']
                 )
             else:
                 json.dump(
                     export_data, 
                     f, 
-                    ensure_ascii=validated_options['ensure_ascii']
+                    ensure_ascii=options['ensure_ascii']
                 )
+        
+        return output_path
+    
+    def _export_streaming(self, conversation: Conversation, output_path: Path,
+                         options: Dict[str, Any]) -> Path:
+        """Export using streaming approach for large conversations."""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write opening structure
+            f.write('{\n' if options['pretty_print'] else '{')
+            
+            # Export info
+            export_info = {
+                'format': 'json',
+                'version': '1.0',
+                'exported_at': conversation.metadata.updated_at.isoformat(),
+                'exporter': 'D-Model-Runner JSON Exporter (Streaming)'
+            }
+            
+            indent = '  ' if options['pretty_print'] else ''
+            f.write(f'{indent}"export_info": ')
+            json.dump(export_info, f, ensure_ascii=options['ensure_ascii'])
+            f.write(',\n' if options['pretty_print'] else ',')
+            
+            # Start conversation object
+            f.write(f'{indent}"conversation": {{\n' if options['pretty_print'] else '"conversation":{')
+            
+            # Conversation ID
+            f.write(f'{indent}  "id": ' if options['pretty_print'] else '"id":')
+            json.dump(conversation.id, f, ensure_ascii=options['ensure_ascii'])
+            f.write(',\n' if options['pretty_print'] else ',')
+            
+            # Metadata if requested
+            if options['include_metadata']:
+                f.write(f'{indent}  "metadata": ' if options['pretty_print'] else '"metadata":')
+                json.dump(conversation.metadata.to_dict(), f, ensure_ascii=options['ensure_ascii'])
+                f.write(',\n' if options['pretty_print'] else ',')
+            
+            # Start messages array
+            f.write(f'{indent}  "messages": [\n' if options['pretty_print'] else '"messages":[')
+            
+            # Stream messages one by one
+            for i, message in enumerate(conversation.messages):
+                if i > 0:
+                    f.write(',\n' if options['pretty_print'] else ',')
+                
+                message_data = {
+                    'role': message.role,
+                    'content': message.content
+                }
+                
+                if options['include_timestamps']:
+                    message_data['timestamp'] = message.timestamp.isoformat()
+                
+                if options['include_message_metadata'] and message.metadata:
+                    message_data['metadata'] = message.metadata
+                
+                if options['pretty_print']:
+                    f.write(f'{indent}    ')
+                
+                json.dump(message_data, f, ensure_ascii=options['ensure_ascii'])
+            
+            # Close messages array and conversation object
+            f.write(f'\n{indent}  ]\n' if options['pretty_print'] else ']')
+            f.write(f'{indent}}}\n' if options['pretty_print'] else '}')
+            f.write('}')
         
         return output_path
     

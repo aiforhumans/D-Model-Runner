@@ -13,6 +13,8 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict, field
 
 from ..utils.helpers import safe_get_nested
+from .index_cache import ConversationIndexCache
+from ..utils.performance import measure_performance, track_cache_performance
 
 
 @dataclass
@@ -158,6 +160,9 @@ class ConversationManager:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._conversations: Dict[str, Conversation] = {}
         self._current_conversation: Optional[Conversation] = None
+        
+        # Initialize conversation index cache for optimized operations
+        self._index_cache = ConversationIndexCache(self.storage_dir)
     
     def create_conversation(self, title: str, model: str, **metadata_kwargs) -> Conversation:
         """Create a new conversation."""
@@ -181,10 +186,25 @@ class ConversationManager:
         
         return None
     
+    @measure_performance("conversation_save", include_args=True)
     def save_conversation(self, conversation: Conversation) -> Path:
         """Save a conversation to disk."""
         file_path = self.storage_dir / f"{conversation.id}.json"
         conversation.save(file_path)
+        
+        # Update index cache with new metadata
+        metadata = {
+            'id': conversation.id,
+            'title': conversation.metadata.title,
+            'model': conversation.metadata.model,
+            'created_at': conversation.metadata.created_at.isoformat(),
+            'updated_at': conversation.metadata.updated_at.isoformat(),
+            'tags': conversation.metadata.tags,
+            'description': conversation.metadata.description,
+            'message_count': len(conversation.messages)
+        }
+        self._index_cache.update_conversation_metadata(conversation.id, metadata)
+        
         return file_path
     
     def load_conversation(self, conversation_id: str) -> Optional[Conversation]:
@@ -197,30 +217,10 @@ class ConversationManager:
         self._conversations[conversation.id] = conversation
         return conversation
     
+    @track_cache_performance("conversation_list")
     def list_conversations(self) -> List[Dict[str, Any]]:
-        """List all available conversations with metadata."""
-        conversations = []
-        
-        # Load conversations from disk
-        for file_path in self.storage_dir.glob("*.json"):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                conversations.append({
-                    'id': data['id'],
-                    'title': data['metadata']['title'],
-                    'model': data['metadata']['model'],
-                    'created_at': data['metadata']['created_at'],
-                    'updated_at': data['metadata']['updated_at'],
-                    'message_count': len(data.get('messages', [])),
-                    'tags': data['metadata'].get('tags', [])
-                })
-            except (json.JSONDecodeError, KeyError):
-                continue
-        
-        # Sort by updated_at, most recent first
-        conversations.sort(key=lambda x: x['updated_at'], reverse=True)
-        return conversations
+        """List all available conversations with metadata using optimized index cache."""
+        return self._index_cache.get_all_metadata()
     
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation."""
@@ -234,6 +234,9 @@ class ConversationManager:
         if self._current_conversation and self._current_conversation.id == conversation_id:
             self._current_conversation = None
         
+        # Remove from index cache
+        self._index_cache.remove_conversation(conversation_id)
+        
         return True
     
     def set_current_conversation(self, conversation: Conversation) -> None:
@@ -245,30 +248,20 @@ class ConversationManager:
         """Get the current active conversation."""
         return self._current_conversation
     
+    @measure_performance("conversation_search", include_args=True)
     def search_conversations(self, query: str, search_content: bool = False) -> List[Dict[str, Any]]:
-        """Search conversations by title, tags, or optionally content."""
-        query = query.lower()
-        results = []
-        
-        for conv_info in self.list_conversations():
-            # Search in title and tags
-            if (query in conv_info['title'].lower() or 
-                any(query in tag.lower() for tag in conv_info['tags'])):
-                results.append(conv_info)
-                continue
-            
-            # Search in content if requested
-            if search_content:
-                conversation = self.get_conversation(conv_info['id'])
-                if conversation:
-                    for message in conversation.messages:
-                        if query in message.content.lower():
-                            results.append(conv_info)
-                            break
-        
-        return results
+        """Search conversations using optimized index cache."""
+        return self._index_cache.search_metadata(query, search_content)
     
     def enable_auto_save(self, conversation: Conversation) -> None:
         """Enable auto-save for a conversation."""
         file_path = self.storage_dir / f"{conversation.id}.json"
         conversation.set_auto_save(True, file_path)
+    
+    def invalidate_cache(self) -> None:
+        """Force a rebuild of the conversation index cache."""
+        self._index_cache.invalidate_cache()
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get statistics about the conversation cache."""
+        return self._index_cache.get_cache_stats()

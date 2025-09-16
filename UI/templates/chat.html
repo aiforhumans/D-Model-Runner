@@ -20,6 +20,18 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="template-selector">
+                <label for="template-select">Template:</label>
+                <select id="template-select">
+                    <option value="">None</option>
+                    {% for template in available_templates %}
+                    <option value="{{ template.id }}" data-variables="{{ template.variables | join(',') }}">
+                        {{ template.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="template-preview-btn" style="display: none;">Preview</button>
+            </div>
         </header>
 
         <div class="chat-messages" id="chat-messages">
@@ -43,6 +55,9 @@
                     <button type="submit" id="send-button">
                         <span class="send-text">Send</span>
                         <span class="send-loading" style="display: none;">Sending...</span>
+                    </button>
+                    <button type="button" id="cancel-button" style="display: none;" disabled>
+                        <span class="cancel-text">Cancel</span>
                     </button>
                 </div>
             </form>
