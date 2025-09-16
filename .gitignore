@@ -166,8 +166,12 @@ dmr/storage/data/templates/*.json
 # Export files
 exports/
 *.pdf
-*.md
 *.json
+
+# Allow TODO documentation
+!TODO/*.md
+# Exclude other markdown files
+*.md
 
 # Configuration overrides
 config/local.yaml
