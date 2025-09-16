@@ -39,11 +39,11 @@ class PDFExporter(BaseExporter):
     def _check_dependencies(self) -> None:
         """Check for PDF generation dependencies."""
         try:
-            import reportlab
+            import reportlab  # type: ignore[import-untyped]
             self._pdf_engine = 'reportlab'
         except ImportError:
             try:
-                import weasyprint
+                import weasyprint  # type: ignore[import-untyped]
                 self._pdf_engine = 'weasyprint'
             except ImportError:
                 self._pdf_engine = 'html2pdf'  # Fallback using built-in HTML generation
@@ -98,11 +98,11 @@ class PDFExporter(BaseExporter):
                               options: Dict[str, Any]) -> Path:
         """Export using ReportLab library."""
         try:
-            from reportlab.lib.pagesizes import letter, A4, A3, A5, legal
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.units import inch
-            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import letter, A4, A3, A5, legal  # type: ignore[import-untyped]
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  # type: ignore[import-untyped]
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore[import-untyped]
+            from reportlab.lib.units import inch  # type: ignore[import-untyped]
+            from reportlab.lib import colors  # type: ignore[import-untyped]
             
             # Map page sizes
             page_size_map = {
@@ -227,7 +227,7 @@ class PDFExporter(BaseExporter):
                                options: Dict[str, Any]) -> Path:
         """Export using WeasyPrint library."""
         try:
-            import weasyprint
+            import weasyprint  # type: ignore[import-untyped]
             
             # Generate HTML content
             html_content = self._generate_html_content(conversation, options)
@@ -489,13 +489,13 @@ class PDFExporter(BaseExporter):
         engines = []
         
         try:
-            import reportlab
+            import reportlab  # type: ignore[import-untyped]
             engines.append('reportlab')
         except ImportError:
             pass
         
         try:
-            import weasyprint
+            import weasyprint  # type: ignore[import-untyped]
             engines.append('weasyprint')
         except ImportError:
             pass
