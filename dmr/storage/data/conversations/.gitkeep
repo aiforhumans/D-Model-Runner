@@ -1,0 +1,2 @@
+# This file ensures the conversations directory is tracked by git
+# Actual conversation files are ignored by .gitignore

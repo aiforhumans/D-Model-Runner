@@ -1,0 +1,58 @@
+# D-Model-Runner Default Configuration
+# This file contains the default settings for the application
+
+api:
+  base_url: "http://localhost:12434/engines/llama.cpp/v1/"
+  key: "anything"
+  timeout: 30
+  
+  models:
+    default: "ai/gemma3"
+    available:
+      - "ai/gemma3"
+      - "ai/qwen3"
+    
+    # Default parameters for all models
+    defaults:
+      max_tokens: 500
+      temperature: 0.7
+      top_p: 0.9
+      stream: true
+      presence_penalty: 0.0
+      frequency_penalty: 0.0
+    
+    # Model-specific configurations
+    configs:
+      ai_gemma3:
+        description: "General conversation model"
+        max_tokens: 500
+        temperature: 0.7
+      
+      ai_qwen3:
+        description: "Reasoning model with thinking tokens"
+        max_tokens: 800
+        temperature: 0.6
+
+logging:
+  level: "INFO"
+  debug: false
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+ui:
+  show_model_info: true
+  stream_responses: true
+  max_history: 100
+  
+  # System prompt presets
+  system_prompts:
+    default: "You are a helpful AI assistant. Be concise but informative in your responses."
+    pirate: "You are a pirate. Talk like a pirate in all your responses, using pirate slang and terminology."
+    technical: "You are a technical expert. Provide detailed, accurate technical information."
+    creative: "You are a creative assistant. Think outside the box and provide imaginative responses."
+
+# Storage configuration (for future conversation persistence)
+storage:
+  enabled: false
+  directory: "./data/conversations"
+  max_conversations: 1000
+  auto_save: true

@@ -1,0 +1,45 @@
+# Custom Profile Template
+# Copy this file and modify to create your own configuration profile
+
+api:
+  # Override API settings
+  base_url: "http://localhost:12434/engines/llama.cpp/v1/"
+  
+  models:
+    # Choose your preferred default model
+    default: "ai/gemma3"  # or "ai/qwen3"
+    
+    # Customize model parameters
+    defaults:
+      max_tokens: 500
+      temperature: 0.7
+      top_p: 0.9
+      stream: true
+    
+    # Model-specific overrides
+    configs:
+      ai_gemma3:
+        max_tokens: 400
+        temperature: 0.6
+      
+      ai_qwen3:
+        max_tokens: 600
+        temperature: 0.8
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  debug: false
+
+ui:
+  show_model_info: true
+  stream_responses: true
+  max_history: 100
+  
+  # Add your own system prompts
+  system_prompts:
+    custom: "Your custom system prompt here"
+
+# Storage settings (when implemented)
+storage:
+  enabled: false
+  directory: "./custom_data/conversations"

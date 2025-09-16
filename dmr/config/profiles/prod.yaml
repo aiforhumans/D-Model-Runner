@@ -1,0 +1,27 @@
+# Production Profile Configuration
+# Optimized settings for production use
+
+api:
+  # Production model settings
+  models:
+    defaults:
+      max_tokens: 300
+      temperature: 0.6
+      stream: false  # Disable streaming for production
+      top_p: 0.8
+
+logging:
+  level: "WARNING"
+  debug: false
+
+ui:
+  # Minimal UI output in production
+  show_model_info: false
+  max_history: 200
+
+# Production storage settings
+storage:
+  enabled: true
+  directory: "/var/lib/dmr/conversations"
+  max_conversations: 10000
+  auto_save: true

@@ -1,0 +1,28 @@
+# Development Profile Configuration
+# Inherits from default.yaml and overrides specific settings
+
+api:
+  # Use different model for development
+  models:
+    default: "ai/qwen3"
+    
+    # Development-specific model parameters
+    defaults:
+      max_tokens: 200
+      temperature: 0.8
+      stream: true
+
+logging:
+  level: "DEBUG"
+  debug: true
+
+ui:
+  # Show more information in development
+  show_model_info: true
+  max_history: 50
+
+# Enable storage features for testing
+storage:
+  enabled: true
+  directory: "./dev_data/conversations"
+  max_conversations: 100

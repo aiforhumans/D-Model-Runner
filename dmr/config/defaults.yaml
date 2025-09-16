@@ -1,0 +1,28 @@
+# Default configuration values
+# This file is loaded when no other configuration is found
+
+api:
+  base_url: "http://localhost:12434/engines/llama.cpp/v1/"
+  key: "anything"
+  timeout: 30
+  
+  models:
+    default: "ai/gemma3"
+    available:
+      - "ai/gemma3" 
+      - "ai/qwen3"
+    
+    defaults:
+      max_tokens: 500
+      temperature: 0.7
+      top_p: 0.9
+      stream: true
+
+logging:
+  level: "INFO"
+  debug: false
+
+ui:
+  show_model_info: true
+  stream_responses: true
+  max_history: 100
