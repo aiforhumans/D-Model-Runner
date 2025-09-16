@@ -141,6 +141,24 @@ logging:
   debug: true
 ```
 
+Load your custom configuration:
+
+```python
+from dmr.config import ConfigManager
+
+# Load specific profile
+config = ConfigManager()
+config.load_config(profile='dev')  # or 'prod', 'custom'
+
+# Load custom config file
+config.load_config(config_path='config/my-config.yaml')
+
+# Access configuration values
+base_url = config.get_base_url()
+model = config.get_default_model()
+model_settings = config.get_model_config(model)
+```
+
 ### Basic Usage
 
 Run the interactive chat interface:
@@ -190,6 +208,59 @@ The client expects Docker Model Runner to be running on:
 - **Unix Socket**: Custom Unix socket paths
 
 Models are automatically configured through the configuration system. See the Configuration section above for details.
+
+## Storage & Templates
+
+### Conversation Management
+
+The client includes a comprehensive conversation storage system with templates:
+
+```python
+from dmr.storage import ConversationManager, TemplateManager, ExportManager
+
+# Initialize managers
+conv_mgr = ConversationManager()
+template_mgr = TemplateManager()
+export_mgr = ExportManager()
+
+# Save conversations with metadata
+conversation_data = {
+    "messages": [{"role": "user", "content": "Hello"}],
+    "model": "ai/gemma3",
+    "timestamp": "2024-11-15T10:30:00Z"
+}
+conv_id = conv_mgr.save_conversation(conversation_data, metadata={"topic": "greeting"})
+
+# Load conversations
+conversation = conv_mgr.load_conversation(conv_id)
+
+# Export in multiple formats
+export_mgr.export_conversation(conversation, 'output.json', 'json')
+export_mgr.export_conversation(conversation, 'output.md', 'markdown')
+export_mgr.export_conversation(conversation, 'output.txt', 'text')
+```
+
+### Template Workflows
+
+Create and use conversation templates for common scenarios:
+
+```python
+# Create a template
+template = {
+    "name": "code_review",
+    "description": "Template for code review sessions",
+    "initial_prompt": "Please review the following code for best practices and potential improvements:",
+    "model_config": {
+        "temperature": 0.3,
+        "max_tokens": 1000
+    }
+}
+template_mgr.save_template("code_review", template)
+
+# Use template in conversation
+template = template_mgr.load_template("code_review")
+# Apply template settings to your chat session
+```
 
 ## API Usage Examples
 
@@ -360,6 +431,16 @@ D-Model-Runner/
 ├── main.py                     # Main client application
 ├── test/
 │   └── test.py                # Parameter testing utility
+├── tests/                     # Comprehensive test suite (Phase 3)
+│   ├── unit/                  # Unit tests for all components
+│   │   ├── test_config.py     # Configuration system tests
+│   │   ├── test_storage.py    # Storage system tests
+│   │   └── test_error_scenarios.py # Error handling tests
+│   ├── integration/           # Integration and workflow tests
+│   │   ├── test_integration.py # Cross-component integration
+│   │   └── test_workflows.py  # End-to-end workflow tests
+│   └── performance/           # Performance benchmarks
+│       └── benchmark.py       # System performance analysis
 ├── requirements.txt            # Python dependencies
 ├── .gitignore                 # Git ignore rules
 ├── README.md                  # This file
