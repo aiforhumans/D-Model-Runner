@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-Model-Runner Chat Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <h1>🤖 D-Model-Runner Chat</h1>
+            <div class="model-selector">
+                <label for="model-select">Model:</label>
+                <select id="model-select">
+                    {% for model in available_models %}
+                    <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>
+                        {{ model }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </header>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="system-message">
+                <div class="message-content">
+                    Welcome to D-Model-Runner Chat Interface! 
+                    <br>Current model: <strong>{{ current_model }}</strong>
+                    <br>Type a message below to start chatting.
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <form id="chat-form" class="chat-form">
+                <div class="input-group">
+                    <input type="text" 
+                           id="message-input" 
+                           placeholder="Type your message here..." 
+                           autocomplete="off"
+                           required>
+                    <button type="submit" id="send-button">
+                        <span class="send-text">Send</span>
+                        <span class="send-loading" style="display: none;">Sending...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="status-bar">
+            <div id="connection-status" class="status-indicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking connection...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
