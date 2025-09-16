@@ -5,6 +5,12 @@ api:
   # Override API settings
   base_url: "http://localhost:12434/engines/llama.cpp/v1/"
   
+  # Client configuration for custom environments
+  client:
+    timeout: 30.0          # Adjust timeout for your server
+    max_retries: 2         # Number of retries on failure
+    connection_check: true # Check server health on startup
+  
   models:
     # Choose your preferred default model
     default: "ai/gemma3"  # or "ai/qwen3"

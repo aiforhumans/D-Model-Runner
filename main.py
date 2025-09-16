@@ -1,4 +1,5 @@
 from openai import OpenAI
+import openai
 from dmr.config import ConfigManager
 from dmr.utils.helpers import validate_model_name, format_error_message
 from dmr.storage import ConversationManager, TemplateManager, ExportManager
@@ -14,12 +15,185 @@ template_manager = TemplateManager()
 export_manager = ExportManager()
 
 def initialize_client():
-    """Initialize OpenAI client with configuration."""
+    """Initialize OpenAI client with configuration and production-ready settings."""
     config = config_manager.load_config()
     base_url = config_manager.get_base_url()
     api_key = config_manager.get_api_key()
     
-    return OpenAI(base_url=base_url, api_key=api_key)
+    # Get client configuration from config manager
+    client_config = config_manager.get('api.client', {})
+    timeout = client_config.get('timeout', 30.0)  # Custom timeout for local Docker Model Runner
+    max_retries = client_config.get('max_retries', 2)  # Retry on connection issues
+    
+    return OpenAI(
+        base_url=base_url, 
+        api_key=api_key,
+        timeout=timeout,
+        max_retries=max_retries
+    )
+
+def check_model_server_health():
+    """Check if Docker Model Runner is accessible and return available models."""
+    try:
+        client = initialize_client()
+        # Try to list models as a health check
+        models = client.models.list()
+        raw_models = [model.id for model in models.data]
+        
+        # Normalize model names by removing :latest and other tags
+        available_models = []
+        for model in raw_models:
+            # Remove tag suffixes like :latest, :q4_k_m, etc.
+            base_model = model.split(':')[0]
+            # Also handle hf.co/ prefixes by taking just the model name
+            if base_model.startswith('hf.co/'):
+                base_model = base_model.split('/')[-1]
+            if base_model not in available_models:
+                available_models.append(base_model)
+        
+        print(f"✅ Server accessible. Available models: {', '.join(available_models)}")
+        print(f"   Raw server models: {', '.join(raw_models[:3])}{'...' if len(raw_models) > 3 else ''}")
+        return True, available_models
+    except openai.APIConnectionError as e:
+        print("❌ Cannot connect to Docker Model Runner")
+        print("💡 Start with: docker run -p 12434:12434 docker/model-runner")
+        print(f"Connection details: {e}")
+        return False, []
+    except openai.APITimeoutError as e:
+        print("⏱️ Connection to Docker Model Runner timed out")
+        print("💡 Server may be starting up. Try again in a moment.")
+        print(f"Timeout details: {e}")
+        return False, []
+    except openai.APIStatusError as e:
+        print(f"🚫 Server returned error {e.status_code}")
+        if hasattr(e, 'response'):
+            print(f"Response: {e.response.text}")
+        return False, []
+    except Exception as e:
+        print(f"⚠️ Unexpected error during server health check: {e}")
+        return False, []
+
+def resolve_model_name_for_server(model_name):
+    """Resolve config model name to actual server model name."""
+    try:
+        client = initialize_client()
+        models = client.models.list()
+        server_models = [model.id for model in models.data]
+        
+        # Try exact match first
+        if model_name in server_models:
+            return model_name
+        
+        # Try with :latest suffix
+        model_with_latest = f"{model_name}:latest"
+        if model_with_latest in server_models:
+            return model_with_latest
+        
+        # Try partial matches (for models like ai/gemma3)
+        for server_model in server_models:
+            if server_model.startswith(model_name):
+                return server_model
+        
+        # Fallback to original name
+        print(f"⚠️ Model '{model_name}' not found on server, using as-is")
+        return model_name
+        
+    except Exception as e:
+        print(f"⚠️ Could not resolve model name: {e}")
+        return model_name
+
+def validate_model_availability(model_name):
+    """Validate model is available on the Docker Model Runner server."""
+    try:
+        client = initialize_client()
+        models = client.models.list()
+        server_models = [model.id for model in models.data]
+        
+        # Check various forms of the model name
+        model_forms = [
+            model_name,
+            f"{model_name}:latest",
+        ]
+        
+        # Add partial matches
+        for server_model in server_models:
+            if server_model.startswith(model_name):
+                model_forms.append(server_model)
+        
+        for form in model_forms:
+            if form in server_models:
+                return True
+        
+        print(f"❌ Model '{model_name}' not available on server")
+        print(f"Available models: {', '.join([m.split(':')[0] for m in server_models[:5]])}{'...' if len(server_models) > 5 else ''}")
+        return False
+        
+    except openai.APIConnectionError:
+        print(f"⚠️ Cannot validate model '{model_name}' - server unreachable")
+        return False  # Fail closed for safety
+    except Exception as e:
+        print(f"⚠️ Could not validate model availability: {e}")
+        return False  # Fail closed for safety
+    """Validate model is available on the Docker Model Runner server."""
+    try:
+        client = initialize_client()
+        models = client.models.list()
+        available_models = [model.id for model in models.data]
+        
+        if model_name in available_models:
+            return True
+        else:
+            print(f"❌ Model '{model_name}' not available on server")
+            print(f"Available models: {', '.join(available_models)}")
+            return False
+    except openai.APIConnectionError:
+        print(f"⚠️ Cannot validate model '{model_name}' - server unreachable")
+        return False  # Fail closed for safety
+    except Exception as e:
+        print(f"⚠️ Could not validate model availability: {e}")
+        return False  # Fail closed for safety
+
+def chat_with_extended_timeout(client, model, messages, model_config, timeout=60.0):
+    """Chat with extended timeout for potentially slow operations."""
+    try:
+        with client.with_options(timeout=timeout).chat.completions.stream(
+            model=model,
+            messages=messages,
+            max_tokens=model_config.get('max_tokens', 500),
+            temperature=model_config.get('temperature', 0.7),
+            top_p=model_config.get('top_p', 0.9),
+        ) as stream:
+            assistant_response = ""
+            try:
+                for event in stream:
+                    if event.type == "content.delta":
+                        print(event.delta, end="", flush=True)
+                        assistant_response += event.delta
+                
+                print()  # New line after streaming
+                
+                # Get the final accumulated response if available
+                try:
+                    final_completion = stream.get_final_completion()
+                    if final_completion and final_completion.choices:
+                        final_content = final_completion.choices[0].message.content
+                        if final_content:
+                            assistant_response = final_content
+                except Exception:
+                    # Fallback to accumulated response
+                    pass
+                
+            except openai.LengthFinishReasonError:
+                print("\n⚠️ Response truncated due to max_tokens limit")
+            except openai.ContentFilterFinishReasonError:
+                print("\n⚠️ Response filtered by content policy")
+            
+            return assistant_response
+            
+    except openai.APITimeoutError:
+        print(f"\n⏱️ Extended timeout ({timeout}s) exceeded for {model}")
+        print("💡 Try reducing max_tokens or using a faster model")
+        return None
 
 def chat_with_model(model=None, system_prompt=None, conversation=None):
     """
@@ -32,9 +206,13 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
         system_prompt = config_manager.get('ui.system_prompts.default', 
                                          "You are a helpful AI assistant. Be concise but informative in your responses.")
     
-    # Validate model name
+    # Validate model name and server availability
     if not validate_model_name(model):
-        print(f"❌ Invalid model name: {model}")
+        print(f"❌ Invalid model name format: {model}")
+        return
+    
+    if not validate_model_availability(model):
+        print(f"❌ Model '{model}' not available on Docker Model Runner")
         return
     
     # Initialize client
@@ -160,33 +338,125 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
                 # Get model-specific configuration
                 model_config = config_manager.get_model_config(current_model)
                 
-                response = client.chat.completions.create(
-                    model=current_model,
-                    messages=messages,
-                    max_tokens=model_config.get('max_tokens', 500),
-                    temperature=model_config.get('temperature', 0.7),
-                    top_p=model_config.get('top_p', 0.9),
-                    stream=model_config.get('stream', True)
-                )
-
-                # Stream the response
-                assistant_response = ""
-                for chunk in response:
-                    if chunk.choices and len(chunk.choices) > 0:
-                        delta = chunk.choices[0].delta
-                        if hasattr(delta, 'content') and delta.content:
-                            print(delta.content, end="", flush=True)
-                            assistant_response += delta.content
-
-                print()  # New line after streaming
+                # Resolve model name for server (handle :latest suffixes etc.)
+                server_model_name = resolve_model_name_for_server(current_model)
+                
+                # Check if streaming is enabled in configuration
+                stream_enabled = model_config.get('stream', True)
+                
+                if stream_enabled:
+                    # Try modern streaming API first, fallback to traditional if needed
+                    try:
+                        with client.chat.completions.stream(
+                            model=server_model_name,
+                            messages=messages,
+                            max_tokens=model_config.get('max_tokens', 500),
+                            temperature=model_config.get('temperature', 0.7),
+                            top_p=model_config.get('top_p', 0.9),
+                        ) as stream:
+                            assistant_response = ""
+                            try:
+                                for event in stream:
+                                    if event.type == "content.delta":
+                                        print(event.delta, end="", flush=True)
+                                        assistant_response += event.delta
+                                
+                                print()  # New line after streaming
+                                
+                                # Get the final accumulated response if available
+                                try:
+                                    final_completion = stream.get_final_completion()
+                                    if final_completion and final_completion.choices:
+                                        final_content = final_completion.choices[0].message.content
+                                        if final_content:
+                                            assistant_response = final_content
+                                except Exception:
+                                    # Fallback to accumulated response
+                                    pass
+                                
+                            except openai.LengthFinishReasonError:
+                                print("\n⚠️ Response truncated due to max_tokens limit")
+                            except openai.ContentFilterFinishReasonError:
+                                print("\n⚠️ Response filtered by content policy")
+                    
+                    except AttributeError:
+                        # Fallback to traditional streaming if modern API not available
+                        response = client.chat.completions.create(
+                            model=server_model_name,
+                            messages=messages,
+                            max_tokens=model_config.get('max_tokens', 500),
+                            temperature=model_config.get('temperature', 0.7),
+                            top_p=model_config.get('top_p', 0.9),
+                            stream=True
+                        )
+                        
+                        assistant_response = ""
+                        for chunk in response:
+                            if chunk.choices and len(chunk.choices) > 0:
+                                delta = chunk.choices[0].delta
+                                if hasattr(delta, 'content') and delta.content:
+                                    print(delta.content, end="", flush=True)
+                                    assistant_response += delta.content
+                        
+                        print()  # New line after streaming
+                else:
+                    # Non-streaming mode
+                    response = client.chat.completions.create(
+                        model=server_model_name,
+                        messages=messages,
+                        max_tokens=model_config.get('max_tokens', 500),
+                        temperature=model_config.get('temperature', 0.7),
+                        top_p=model_config.get('top_p', 0.9),
+                        stream=False
+                    )
+                    
+                    assistant_response = response.choices[0].message.content
+                    print(assistant_response)
 
                 # Add assistant response to conversation and history
                 conversation.add_message("assistant", assistant_response)
                 messages = conversation.get_openai_messages()
 
+            except openai.APIConnectionError as e:
+                # Docker Model Runner not available
+                error_msg = format_error_message(e, "connecting to model server")
+                print(f"\n🔌 Connection Error: {error_msg}")
+                print("💡 Tip: Make sure Docker Model Runner is running on localhost:12434")
+                # Remove the failed user message from conversation
+                if conversation.messages and conversation.messages[-1].role == "user":
+                    conversation.messages.pop()
+                messages = conversation.get_openai_messages()
+            except openai.APITimeoutError as e:
+                # Model loading can be slow
+                error_msg = format_error_message(e, "API request timeout")
+                print(f"\n⏱️ Timeout Error: {error_msg}")
+                print("💡 Tip: Model might be loading. Try again in a moment.")
+                # Remove the failed user message from conversation
+                if conversation.messages and conversation.messages[-1].role == "user":
+                    conversation.messages.pop()
+                messages = conversation.get_openai_messages()
+            except openai.APIStatusError as e:
+                # Invalid parameters or model not loaded
+                error_msg = format_error_message(e, f"API call (status {e.status_code})")
+                print(f"\n🚫 API Error: {error_msg}")
+                if hasattr(e, 'response'):
+                    print(f"Response: {e.response.text}")
+                # Remove the failed user message from conversation
+                if conversation.messages and conversation.messages[-1].role == "user":
+                    conversation.messages.pop()
+                messages = conversation.get_openai_messages()
+            except openai.RateLimitError as e:
+                # Rate limiting (if Docker Model Runner implements it)
+                print(f"\n⚡ Rate Limit: {e}")
+                print("💡 Tip: Wait a moment before trying again.")
+                # Remove the failed user message from conversation
+                if conversation.messages and conversation.messages[-1].role == "user":
+                    conversation.messages.pop()
+                messages = conversation.get_openai_messages()
             except Exception as e:
+                # Fallback for unexpected errors
                 error_msg = format_error_message(e, f"API call to {current_model}")
-                print(f"\n❌ Error: {error_msg}")
+                print(f"\n❌ Unexpected Error: {error_msg}")
                 # Remove the failed user message from conversation
                 if conversation.messages and conversation.messages[-1].role == "user":
                     conversation.messages.pop()
@@ -337,6 +607,23 @@ def main():
     print("🚀 D-Model-Runner Chat Interface with Conversation Persistence")
     print("=" * 65)
 
+    # Health check for Docker Model Runner (if enabled in config)
+    health_ok = True
+    available_models = []
+    
+    # Check if connection check is enabled in configuration
+    connection_check = config_manager.get('api.client.connection_check', True)
+    
+    if connection_check:
+        print("\n🔍 Checking Docker Model Runner connection...")
+        health_ok, available_models = check_model_server_health()
+        if not health_ok:
+            print("\n⚠️ Continuing without server validation...")
+            available_models = []  # Will fall back to config-based models
+    else:
+        print("\n⏩ Skipping connection check (disabled in configuration)")
+        available_models = []
+
     # Profile selection
     try:
         available_profiles = config_manager.list_available_profiles()
@@ -371,25 +658,41 @@ def main():
 
     # Model selection
     print("\nAvailable models:")
-    available_models = config_manager.get_available_models()
+    config_models = config_manager.get_available_models()
+    
+    # If server health check was successful, show which models are validated
+    if health_ok and available_models:
+        # Only show models that we have configuration for
+        display_models = config_models
+        print("(✅ = Server Validated)")
+    else:
+        # Fall back to config-based models only
+        display_models = config_models
+    
     default_model = config_manager.get_default_model()
     
-    for i, model in enumerate(available_models, 1):
-        model_config = config_manager.get_model_config(model)
-        description = model_config.get('description', 'No description')
+    for i, model in enumerate(display_models, 1):
+        try:
+            model_config = config_manager.get_model_config(model)
+            description = model_config.get('description', 'No description')
+        except ValueError:
+            # Skip models we don't have configuration for
+            continue
+            
         default_marker = " (default)" if model == default_model else ""
-        print(f"{i}. {model}{default_marker} - {description}")
+        server_validated = " ✅" if model in available_models else ""
+        print(f"{i}. {model}{default_marker}{server_validated} - {description}")
 
     while True:
-        choice = input(f"\nSelect model (1-{len(available_models)}) or press Enter for default: ").strip()
+        choice = input(f"\nSelect model (1-{len(display_models)}) or press Enter for default: ").strip()
 
         if choice == "":
             selected_model = default_model
             break
         elif choice.isdigit():
             idx = int(choice) - 1
-            if 0 <= idx < len(available_models):
-                selected_model = available_models[idx]
+            if 0 <= idx < len(display_models):
+                selected_model = display_models[idx]
                 break
         
         print("❌ Invalid choice.")

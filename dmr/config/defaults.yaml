@@ -6,6 +6,12 @@ api:
   key: "anything"
   timeout: 30
   
+  # Client configuration defaults
+  client:
+    timeout: 30.0          # Default timeout for requests
+    max_retries: 2         # Default number of retries
+    connection_check: true # Check server health by default
+  
   models:
     default: "ai/gemma3"
     available:
@@ -21,6 +27,12 @@ api:
 logging:
   level: "INFO"
   debug: false
+
+# Error handling defaults
+error_handling:
+  show_detailed_errors: true
+  suggest_fixes: true
+  retry_on_timeout: true
 
 ui:
   show_model_info: true

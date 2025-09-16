@@ -11,6 +11,12 @@ api:
       max_tokens: 200
       temperature: 0.8
       stream: true
+  
+  # Client configuration for Docker Model Runner
+  client:
+    timeout: 30.0          # Extended timeout for development
+    max_retries: 3         # More retries for development
+    connection_check: true # Check server health on startup
 
 logging:
   level: "DEBUG"
@@ -20,6 +26,12 @@ ui:
   # Show more information in development
   show_model_info: true
   max_history: 50
+
+# Error handling configuration for development
+error_handling:
+  show_detailed_errors: true
+  suggest_fixes: true
+  retry_on_timeout: true
 
 # Enable storage features for testing
 storage:
