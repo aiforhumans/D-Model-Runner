@@ -15,7 +15,6 @@ from .storage import (
     Template, TemplateManager,
     ExportManager
 )
-from .ai_analysis import quick_analyze, generate_unit_tests, explain_file
 
 __all__ = [
     "ConfigManager",
@@ -25,8 +24,5 @@ __all__ = [
     "ConversationManager",
     "Template", 
     "TemplateManager",
-    "ExportManager",
-    'quick_analyze',
-    'generate_unit_tests', 
-    'explain_file'
+    "ExportManager"
 ]
