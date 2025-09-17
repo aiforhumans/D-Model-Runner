@@ -5,7 +5,7 @@ Using Dagger's native LLM integration
 
 import asyncio
 import dagger
-from dmr import quick_analyze, generate_unit_tests, explain_file
+from dmr import quick_analyze, generate_unit_tests, explain_file # type: ignore
 
 
 async def native_llm_example():
@@ -62,7 +62,7 @@ async def advanced_llm_example():
         # Create environment for LLM to work with
         myenv = (
             client.env()
-            .with_directory_input("source", client.host().directory("."))
+            .with_directory_input("source", client.host().directory(".")) # type: ignore
             .with_directory_output("result")
         )
 

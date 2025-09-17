@@ -42,7 +42,7 @@ print()
 print('3. Testing OpenAI Client Setup...')
 try:
     client = openai.OpenAI(
-        base_url=config_manager.get_base_url(),
+        base_url=config_manager.get_base_url(), # type: ignore
         api_key='dummy_key_for_dagger_test',
         timeout=10.0
     )

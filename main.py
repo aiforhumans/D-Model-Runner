@@ -1,5 +1,6 @@
 from openai import OpenAI
 import openai
+from openai.types.chat import ChatCompletionMessageParam
 from dmr.config import ConfigManager
 from dmr.utils.helpers import validate_model_name, format_error_message
 from dmr.storage import ConversationManager, TemplateManager, ExportManager
@@ -9,6 +10,7 @@ from datetime import datetime
 import time
 import random
 from functools import wraps
+from typing import List
 
 # Initialize configuration manager
 config_manager = ConfigManager()
@@ -111,11 +113,6 @@ def check_model_server_health():
         print("❌ Cannot connect to Docker Model Runner")
         print("💡 Start with: docker run -p 12434:12434 docker/model-runner")
         print(f"Connection details: {e}")
-        return False, []
-    except openai.APITimeoutError as e:
-        print("⏱️ Connection to Docker Model Runner timed out")
-        print("💡 Server may be starting up. Try again in a moment.")
-        print(f"Timeout details: {e}")
         return False, []
     except openai.APIStatusError as e:
         print(f"🚫 Server returned error {e.status_code}")
@@ -403,7 +400,7 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
                     try:
                         with client.chat.completions.stream(
                             model=server_model_name,
-                            messages=messages,
+                            messages=messages,  # type: ignore
                             max_tokens=model_config.get('max_tokens', 500),
                             temperature=model_config.get('temperature', 0.7),
                             top_p=model_config.get('top_p', 0.9),
@@ -437,7 +434,7 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
                         # Fallback to traditional streaming if modern API not available
                         response = client.chat.completions.create(
                             model=server_model_name,
-                            messages=messages,
+                            messages=messages,  # type: ignore
                             max_tokens=model_config.get('max_tokens', 500),
                             temperature=model_config.get('temperature', 0.7),
                             top_p=model_config.get('top_p', 0.9),
@@ -457,7 +454,7 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
                     # Non-streaming mode
                     response = client.chat.completions.create(
                         model=server_model_name,
-                        messages=messages,
+                        messages=messages,  # type: ignore
                         max_tokens=model_config.get('max_tokens', 500),
                         temperature=model_config.get('temperature', 0.7),
                         top_p=model_config.get('top_p', 0.9),
@@ -480,29 +477,12 @@ def chat_with_model(model=None, system_prompt=None, conversation=None):
                 if conversation.messages and conversation.messages[-1].role == "user":
                     conversation.messages.pop()
                 messages = conversation.get_openai_messages()
-            except openai.APITimeoutError as e:
-                # Model loading can be slow
-                error_msg = format_error_message(e, "API request timeout")
-                print(f"\n⏱️ Timeout Error: {error_msg}")
-                print("💡 Tip: Model might be loading. Try again in a moment.")
-                # Remove the failed user message from conversation
-                if conversation.messages and conversation.messages[-1].role == "user":
-                    conversation.messages.pop()
-                messages = conversation.get_openai_messages()
             except openai.APIStatusError as e:
-                # Invalid parameters or model not loaded
+                # Invalid parameters or model not loaded, rate limits
                 error_msg = format_error_message(e, f"API call (status {e.status_code})")
                 print(f"\n🚫 API Error: {error_msg}")
                 if hasattr(e, 'response'):
                     print(f"Response: {e.response.text}")
-                # Remove the failed user message from conversation
-                if conversation.messages and conversation.messages[-1].role == "user":
-                    conversation.messages.pop()
-                messages = conversation.get_openai_messages()
-            except openai.RateLimitError as e:
-                # Rate limiting (if Docker Model Runner implements it)
-                print(f"\n⚡ Rate Limit: {e}")
-                print("💡 Tip: Wait a moment before trying again.")
                 # Remove the failed user message from conversation
                 if conversation.messages and conversation.messages[-1].role == "user":
                     conversation.messages.pop()

@@ -9,12 +9,19 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, asdict, field
 
 from ..utils.helpers import safe_get_nested
 from .index_cache import ConversationIndexCache
 from ..utils.performance import measure_performance, track_cache_performance
+
+try:
+    from openai.types.chat import ChatCompletionMessageParam
+    OPENAI_TYPES_AVAILABLE = True
+except ImportError:
+    OPENAI_TYPES_AVAILABLE = False
+    ChatCompletionMessageParam = Dict[str, str]  # Fallback type
 
 
 @dataclass
@@ -96,9 +103,14 @@ class Conversation:
             return [msg for msg in self.messages if msg.role == role]
         return self.messages.copy()
     
-    def get_openai_messages(self) -> List[Dict[str, str]]:
+    def get_openai_messages(self) -> List[Dict[str, Any]]:
         """Get messages in OpenAI API format."""
-        return [{"role": msg.role, "content": msg.content} for msg in self.messages]
+        messages = []
+        for msg in self.messages:
+            if msg.role in ['user', 'assistant', 'system']:
+                message_dict = {"role": msg.role, "content": msg.content}
+                messages.append(message_dict)
+        return messages
     
     def update_metadata(self, **kwargs) -> None:
         """Update conversation metadata."""
