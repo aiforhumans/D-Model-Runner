@@ -24,6 +24,15 @@ UI/                     # Web interface (Flask-based, ~800 LOC)
 ├── static/           # CSS/JS assets
 ├── tests/            # Playwright test suite
 └── Checklist_ui.md   # UI development roadmap
+
+dagger-integration/    # AI-powered CI/CD with Dagger + Docker Model Runner
+├── src/main.py       # Dagger module with LLM functions
+├── examples.py       # Usage examples and demonstrations
+├── test.py           # Integration tests for Dagger functions
+├── ci_pipeline.sh    # Complete CI/CD pipeline script
+├── dagger.json       # Dagger module configuration
+├── .env              # Environment variables for local development
+└── README.md         # Comprehensive integration documentation
 ```
 
 **Critical Integration Pattern**:
@@ -45,6 +54,14 @@ conversation_manager = ConversationManager()
 python -m pytest tests/ -v
 python tests/performance/benchmark.py  # Performance validation
 python test/test.py                     # Docker Model Runner compatibility
+
+# AI-powered development with Dagger
+dagger call analyze-codebase --source=. --task=review          # Code review
+dagger call analyze-codebase --source=. --task=security-scan   # Security analysis
+dagger call generate-test-suite --source=./src --language=python  # Generate tests
+dagger call explain-file --source=. --file=main.py             # Code explanation
+dagger call quick-analyze --source=.                           # Quick analysis
+./dagger-integration/ci_pipeline.sh                            # Full AI pipeline
 ```
 
 **Configuration Management**:
@@ -53,6 +70,136 @@ python test/test.py                     # Docker Model Runner compatibility
 - Profile switching: `config_manager.load_config('dev')` vs `config_manager.load_config('prod')`
 
 **Current Phase**: ✅ **Phase 4 Complete** (September 2025) - Web UI Implementation
+
+## Dagger Integration & AI-Powered Development
+
+**Dagger Integration Directory**: `dagger-integration/` - AI-powered CI/CD pipelines using Dagger's native LLM integration with Docker Model Runner
+
+**Dagger Module Functions** (`dagger-integration/src/main.py`):
+```python
+# AI-powered code analysis using Dagger's native LLM
+async def analyze_codebase():
+    result = await dag.llm().with_prompt("Review this code for bugs and security issues").sync()
+    
+# Generate unit tests with AI
+async def generate_tests():
+    test_code = await dag.llm().with_prompt("Generate comprehensive unit tests").sync()
+    
+# Explain code functionality
+async def explain_file():
+    explanation = await dag.llm().with_prompt("Explain what this code does").sync()
+```
+
+**Dagger Commands**:
+```bash
+# Code analysis and review
+dagger call analyze-codebase --source=. --task=review
+dagger call analyze-codebase --source=. --task=security-scan
+dagger call analyze-codebase --source=. --task=complexity
+
+# Test generation
+dagger call generate-test-suite --source=./src --language=python
+
+# File operations
+dagger call explain-file --source=. --file=main.py
+dagger call quick-analyze --source=.
+```
+
+**CI/CD Pipeline Integration** (`dagger-integration/ci_pipeline.sh`):
+```bash
+# Complete AI-powered pipeline
+./ci_pipeline.sh  # Runs: prerequisites check, code quality, AI analysis, test generation, documentation, performance analysis
+```
+
+**GitHub Actions Example**:
+```yaml
+name: AI-Powered CI
+on: [push, pull_request]
+
+jobs:
+  ai-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Docker Model Runner
+        run: ./dagger-integration/setup_docker_model_runner_enhanced.sh
+      - name: Install Dagger
+        run: curl -L https://dl.dagger.io/dagger/install.sh | sh
+      - name: Run AI Pipeline
+        run: ./dagger-integration/ci_pipeline.sh
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-analysis-results
+          path: |
+            generated-tests/
+            ci-summary.md
+```
+
+**Automated Pipeline Stages**:
+1. **Prerequisites Check** - Docker, Docker Model Runner, Dagger CLI
+2. **Code Quality** - Linting and security scanning
+3. **AI Analysis** - Code review, complexity analysis
+4. **Test Generation** - AI-generated unit tests
+5. **Documentation** - Automated documentation analysis
+6. **Performance** - Performance bottleneck detection
+7. **Summary Report** - Consolidated pipeline results
+
+**Dagger Module Structure**:
+```python
+dagger-integration/
+├── src/main.py              # Dagger module with AI functions
+├── examples.py              # Usage examples and demonstrations
+├── test.py                  # Integration tests for Dagger functions
+├── ci_pipeline.sh           # Complete CI/CD pipeline script
+├── dagger.json              # Dagger module configuration
+├── .env                     # Environment variables for local development
+└── README.md               # Comprehensive integration documentation
+```
+
+**AI Function Categories**:
+- **Code Analysis**: Automated code review, security scanning, complexity analysis
+- **Test Generation**: AI-generated unit tests for Python/JavaScript/TypeScript
+- **Documentation**: Automated code explanation and documentation generation
+- **Performance**: Performance bottleneck detection and optimization suggestions
+
+**Available AI Functions** (`dagger-integration/src/main.py`):
+```python
+@function
+async def analyze_code(source: dagger.Directory, task: str = "review") -> str:
+    """Analyze code using Dagger's native LLM integration."""
+    # Tasks: "review", "document", "optimize"
+    # Returns AI-powered code analysis and suggestions
+
+@function  
+async def generate_tests(source: dagger.Directory, language: str = "python") -> dagger.Directory:
+    """Generate unit tests using AI."""
+    # Supports: python, javascript, typescript
+    # Returns directory with generated test files
+
+@function
+async def explain_code(source: dagger.Directory, file_path: str) -> str:
+    """Explain what a specific file does."""
+    # Returns plain language explanation of code functionality
+
+@function
+async def suggest_improvements(source: dagger.Directory) -> str:
+    """Suggest improvements for the codebase."""
+    # Returns AI-generated improvement suggestions
+
+# Convenience functions
+@function
+async def quick_analyze(source: dagger.Directory) -> str:
+    """Quick code analysis using Dagger's LLM."""
+    
+@function
+async def generate_unit_tests(source: dagger.Directory) -> dagger.Directory:
+    """Generate unit tests using AI."""
+    
+@function
+async def explain_file(source: dagger.Directory, file_path: str) -> str:
+    """Explain what a file does."""
+```
 
 ## Docker Model Runner Integration
 
@@ -312,6 +459,30 @@ conversation_manager.save_conversation(conversation)
 ```
 
 **❌ Avoid**: Direct file I/O, hardcoded configuration values, bypassing the configuration system
+
+**✅ Dagger Integration Pattern**:
+```python
+# Use Dagger for AI-powered development tasks
+import dagger
+
+async def analyze_with_ai():
+    async with dagger.Connection() as client:
+        # AI-powered code analysis
+        result = await client.llm().with_prompt("Review this code").sync()
+        return result
+
+# Integration with existing DMR patterns
+from dmr.config import ConfigManager
+from dmr.storage import ConversationManager
+
+config_manager = ConfigManager()
+conversation_manager = ConversationManager()
+
+# Use AI analysis results in DMR workflows
+ai_analysis = await analyze_with_ai()
+conversation = conversation_manager.create_conversation("AI Code Review", "ai/qwen3")
+conversation.add_message("user", f"Analyze this code: {ai_analysis}")
+```
 
 ## Error Handling & Resilience
 

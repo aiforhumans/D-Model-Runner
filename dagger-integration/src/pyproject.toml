@@ -1,0 +1,10 @@
+[project]
+name = "dmr"
+version = "0.1.0"
+description = "Dagger module for D-Model-Runner"
+requires-python = ">=3.8"
+dependencies = [
+    "openai>=1.0.0",
+    "requests>=2.28.0",
+    "dagger-io>=0.9.0"
+]
